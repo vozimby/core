@@ -3,7 +3,7 @@ declare(strict_types=1);
 
 namespace Vozimsan\Core\Application\Controllers;
 
-class BaseController
+abstract class AbstractBaseController
 {
     /**
      * @return array<string, string>
