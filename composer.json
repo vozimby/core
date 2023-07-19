@@ -1,0 +1,16 @@
+{
+  "name": "vozim/core",
+  "description": "Core of Best REST Porto Framework (BRPF)",
+  "minimum-stability": "beta",
+  "type": "project",
+  "autoload": {
+    "psr-4": {
+      "Vozimsan\\Core\\": "src/"
+    }
+  },
+  "require": {
+    "php": "^8.1",
+    "symfony/routing": "^6.3",
+    "php-di/php-di": "^7.0"
+  }
+}
