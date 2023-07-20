@@ -35,7 +35,7 @@ trait JsonResponseTrait
      */
     protected function error(string $message, int $statusCode = StatusCode::SUCCESS, array $data = [], array $headers = []): Response
     {
-        $response = ['message' => $message];
+        $response = ['code' => $statusCode, 'message' => $message];
         if (count($data) > 0) {
             $response['data'] = $data;
         }

@@ -15,6 +15,20 @@ class Request extends \Symfony\Component\HttpFoundation\Request
     }
 
     /**
+     * @param array $names
+     * @return array
+     */
+    public function only(array $names): array
+    {
+        $data = [];
+        foreach ($names as $name) {
+            if (!is_null($this->get($name))) $data[$name] = $this->get($name);
+        }
+
+        return $data;
+    }
+
+    /**
      * Gets a "parameter" value from any bag.
      *
      * This method is mainly useful for libraries that want to provide some flexibility. If you don't need the
@@ -38,8 +52,8 @@ class Request extends \Symfony\Component\HttpFoundation\Request
         if ($this->request->has($key)) {
             return $this->request->all()[$key];
         }
-        
-        if ($this->content[$key]) {
+
+        if (isset($this->content[$key])) {
             return $this->content[$key];
         }
 

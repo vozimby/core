@@ -19,6 +19,7 @@
     "symfony/dotenv": "^6.3",
     "guzzlehttp/guzzle": "^7.7",
     "doctrine/annotations": "^2.0",
-    "symfony/http-foundation": "^6.3"
+    "symfony/http-foundation": "^6.3",
+    "rakit/validation": "^1.4"
   }
 }

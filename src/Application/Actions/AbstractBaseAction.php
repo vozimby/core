@@ -8,32 +8,18 @@ use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Response;
 use Vozimsan\Core\Rest\Http\Request;
 use Vozimsan\Core\Rest\Http\Traits\JsonResponseTrait;
+use Vozimsan\Core\Rest\Http\Traits\RequestTrait;
 
 abstract class AbstractBaseAction
 {
-    use JsonResponseTrait;
-
-    /**
-     * @var Request
-     */
-    protected Request $request;
+    use JsonResponseTrait, RequestTrait;
 
     /**
      *
      */
     public function __construct()
     {
-        $requestJson = json_decode(file_get_contents('php://input'), true) ?? [];
-
-        $this->request = new Request(
-            $_GET,
-            $_POST,
-            [],
-            $_COOKIE,
-            $_FILES,
-            $_SERVER,
-            $requestJson
-        );
+        $this->setRequest();
     }
 
     /**

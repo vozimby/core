@@ -5,20 +5,26 @@ namespace Vozimsan\Core\Application\Router;
 
 use DI\DependencyException;
 use DI\NotFoundException;
-use Symfony\Component\Config\FileLocator;
+use Rakit\Validation\Validator;
+use ReflectionClass;
+use ReflectionMethod;
 use Symfony\Component\HttpFoundation\Response;
-use Symfony\Component\Routing\Loader\AnnotationClassLoader;
-use Symfony\Component\Routing\Loader\AnnotationDirectoryLoader;
-use Symfony\Component\Routing\Route;
-use Symfony\Component\Routing\RouteCollection;
+use Vozimsan\Core\Application\Actions\AbstractBaseAction;
 use Vozimsan\Core\Application\App;
+use Vozimsan\Core\Application\Controllers\AbstractBaseController;
 use Vozimsan\Core\Application\DI\Container;
 use Vozimsan\Core\Application\Helpers\DirectoryHelper;
 use Vozimsan\Core\Application\Http\Enums\HttpMethodEnums;
+use Vozimsan\Core\Application\Middlewares\Attributes\Middlewares;
+use Vozimsan\Core\Application\Middlewares\MiddlewareInterface;
+use Vozimsan\Core\Application\Requests\AbstractFormRequest;
+use Vozimsan\Core\Application\Requests\Attributes\FormRequest;
 use Vozimsan\Core\Application\Router\Attributes\Method;
 use Vozimsan\Core\Application\Router\DTO\RouteDTO;
 use Vozimsan\Core\Application\Router\Exceptions\MethodNotAllowedException;
 use Vozimsan\Core\Rest\Http\Traits\JsonResponseTrait;
+use function DI\autowire;
+use function DI\get;
 
 
 class Router
@@ -58,6 +64,7 @@ class Router
     /**
      * @return void
      * @throws MethodNotAllowedException
+     * @throws \Exception
      */
     public function start(): void
     {
@@ -78,7 +85,18 @@ class Router
             throw new MethodNotAllowedException("Method $cleanRoute not allowed");
         }
 
-        $response = $class->$method();
+        $reflector = new ReflectionClass($class);
+
+        $this->processMiddlewares($reflector, $class);
+        $this->processFormRequest($reflector, $class);
+
+        foreach ($reflector->getMethods() as $classMethod) {
+            $this->processMiddlewares($classMethod, $class);
+            $this->processFormRequest($classMethod, $class);
+        }
+
+        $response = Container::getContainer()
+            ->call([$class, $method]);
 
         if ($response instanceof Response) {
             $response->expire()->send();
@@ -96,7 +114,7 @@ class Router
     protected function processNamespace(string $namespace): void
     {
         $class = Container::getContainer()->make($namespace);
-        $reflector = new \ReflectionClass($class);
+        $reflector = new ReflectionClass($class);
 
         [$route, $originalRoute] = $this->fetchClassAttributes($reflector);
         [$method, $methods, $route] = $this->fetchMethodAttributes($reflector, $route);
@@ -109,10 +127,10 @@ class Router
     }
 
     /**
-     * @param \ReflectionClass $reflector
+     * @param ReflectionClass $reflector
      * @return string[]
      */
-    protected function fetchClassAttributes(\ReflectionClass $reflector): array
+    protected function fetchClassAttributes(ReflectionClass $reflector): array
     {
         $route = '';
         $originalRoute = '';
@@ -125,11 +143,11 @@ class Router
     }
 
     /**
-     * @param \ReflectionClass $reflector
+     * @param ReflectionClass $reflector
      * @param string $route
      * @return array
      */
-    protected function fetchMethodAttributes(\ReflectionClass $reflector, string $route): array
+    protected function fetchMethodAttributes(ReflectionClass $reflector, string $route): array
     {
         $method = '__invoke';
         $methods = [];
@@ -157,7 +175,7 @@ class Router
     protected function processAction(string $action, string $originalRoute): void
     {
         $class = Container::getContainer()->make($action);
-        $reflector = new \ReflectionClass($class);
+        $reflector = new ReflectionClass($class);
         $methods = [];
 
         $route = '';
@@ -171,4 +189,60 @@ class Router
         self::$routes[$route] = new RouteDTO($class, '__invoke', $methods);
     }
 
+    /**
+     * @param ReflectionClass|ReflectionMethod $reflector
+     * @param AbstractBaseController|AbstractBaseAction $class
+     * @return void
+     * @throws DependencyException
+     * @throws NotFoundException
+     */
+    protected function processMiddlewares(ReflectionClass|ReflectionMethod $reflector, AbstractBaseController|AbstractBaseAction $class): void
+    {
+        foreach ($reflector->getAttributes(Middlewares::class) as $attribute) {
+            $instance = $attribute->newInstance();
+            foreach ($instance->middlewares as $middleware) {
+                /** @var MiddlewareInterface $middlewareClass */
+                $middlewareClass = Container::getContainer()
+                    ->make($middleware);
+
+                if ($middlewareClass instanceof MiddlewareInterface) {
+                    $middlewareResponse = $middlewareClass->process($class->request);
+
+                    if ($middlewareResponse) {
+                        $middlewareResponse->expire()->send();
+                        exit();
+                    }
+                }
+            }
+        }
+    }
+
+    /**
+     * @param ReflectionClass|ReflectionMethod $reflector
+     * @param AbstractBaseController|AbstractBaseAction $class
+     * @return void
+     * @throws DependencyException
+     * @throws NotFoundException
+     * @throws \ReflectionException
+     */
+    protected function processFormRequest(ReflectionClass|ReflectionMethod $reflector, AbstractBaseController|AbstractBaseAction $class): void
+    {
+        foreach ($reflector->getAttributes(FormRequest::class) as $attribute) {
+            $instance = $attribute->newInstance();
+
+            $formRequestClass = Container::getWithAllParams($instance->formRequest, [
+                'request' => $class->request,
+                'validator' => get(Validator::class),
+            ]);
+
+            if ($formRequestClass instanceof AbstractFormRequest) {
+                $response = $formRequestClass->validate();
+
+                if ($response instanceof Response) {
+                    $response->expire()->send();
+                    exit();
+                }
+            }
+        }
+    }
 }

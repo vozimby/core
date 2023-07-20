@@ -4,6 +4,6 @@
  * @param mixed|null $default
  * @return string|int|null
  */
-function envget(string $name, mixed $default = null) {
+function envGet(string $name, mixed $default = null): int|string|null {
     return $_ENV[$name] ?? $default;
 }
