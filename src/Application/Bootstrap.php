@@ -6,17 +6,23 @@ namespace Vozimsan\Core\Application;
 use GuzzleHttp\Client;
 use Symfony\Component\Dotenv\Dotenv;
 use Vozimsan\Core\Application\DI\Container;
+use Vozimsan\Core\Application\Http\Constants\StatusCode;
 use Vozimsan\Core\Application\Logger\FileLogger;
+use Vozimsan\Core\Application\Router\Exceptions\MethodNotAllowedException;
 use Vozimsan\Core\Application\Router\Router;
+use Vozimsan\Core\Rest\Http\Traits\JsonResponseTrait;
 
 class Bootstrap
 {
+    use JsonResponseTrait;
+
     /**
      * @param string $rootPath
      */
     public function __construct(string $rootPath)
     {
         App::$basePath = $rootPath;
+        App::$route = explode("?", $_SERVER['REQUEST_URI'])[0];
     }
 
     /**
@@ -29,7 +35,16 @@ class Bootstrap
         $dotEnv->loadEnv(App::$basePath."/.env");
         $container = Container::getContainer();
 
-        $router = $container->make(Router::class);
-        $router->init();
+        try {
+            $router = $container->make(Router::class);
+            $router->init();
+            $router->start();
+        } catch (\RuntimeException $exception) {
+            $this->error($exception->getMessage(), StatusCode::NOT_FOUND)->expire()->send();
+            exit();
+        } catch (MethodNotAllowedException $exception) {
+            $this->error($exception->getMessage(), StatusCode::METHOD_NOT_ALLOWED)->expire()->send();
+            exit();
+        }
     }
 }
